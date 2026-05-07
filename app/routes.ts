@@ -15,7 +15,7 @@ export default [
       route("profile", "routes/profile.tsx"),
       route("forum", "features/forum/routes/forum.new.tsx"),
       route("forum-old", "features/forum/routes/forum.tsx"),
-      route("forum/search", "features/forum/routes/forum.search.tsx"),
+      route("forum/all", "features/forum/routes/forum.all.tsx"),
       route("forum/detail/:questionId", "features/forum/routes/forum.$id.tsx"),
       route("events", "features/events/routes/events.tsx"),
       route("events/all", "features/events/routes/events.all.tsx"),

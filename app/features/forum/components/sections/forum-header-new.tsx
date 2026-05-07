@@ -1,4 +1,5 @@
 import { Search } from "lucide-react";
+import { useState } from "react";
 import { useLoaderData, useNavigate } from "react-router";
 import AskQuestionDialog from "../dialog/ask-question-dialog";
 import type { loader } from "../../routes/forum.new";
@@ -8,8 +9,37 @@ const avatarImage = "/images/forum-avatar.jpg";
 const trendingIcon = "/icons/apollo-icon.svg";
 const activeIcon = "/icons/conversation-icon.svg";
 
+function SearchInput({
+  value,
+  onChange,
+  onSearch,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSearch: (v: string) => void;
+}) {
+  return (
+    <div className="flex py-2 h-12 flex-1 items-center gap-3 rounded-lg md:rounded-xl border border-[#e1e7ef] bg-white px-6">
+      <Search className="size-4.5 shrink-0 text-[#8f9294]" />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            onSearch(value);
+          }
+        }}
+        placeholder="Search discussions"
+        className="w-full border-0 bg-transparent text-base text-[#abadaf] placeholder:text-[#abadaf] focus:outline-none"
+      />
+    </div>
+  );
+}
+
 export default function ForumHeaderNew() {
   const navigate = useNavigate();
+  const [search, setSearch] = useState("");
   const { categories, userId } = useLoaderData<typeof loader>();
   const isAuthenticated = Boolean(userId);
 
@@ -37,15 +67,13 @@ export default function ForumHeaderNew() {
         </div>
 
         <div className="flex w-full max-w-2xl flex-col gap-4 md:flex-row md:items-center md:justify-center">
-          <div
-            onClick={() => navigate("/forum/search")}
-            className="flex py-2 h-12 flex-1 items-center gap-3 rounded-lg md:rounded-xl border border-[#e1e7ef] bg-white px-6"
-          >
-            <Search className="size-4.5 shrink-0 text-[#8f9294]" />
-            <span className="w-full border-0 bg-transparent text-base text-[#abadaf]">
-              Search discussions
-            </span>
-          </div>
+          <SearchInput
+            value={search}
+            onChange={(v) => setSearch(v)}
+            onSearch={(v) =>
+              navigate(`/forum/all?search=${encodeURIComponent(v)}`)
+            }
+          />
 
           <AskQuestionDialog
             categories={categories}

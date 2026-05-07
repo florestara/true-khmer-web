@@ -9,7 +9,7 @@ import SearchFiltersSidebar from "./search-filters-sidebar";
 import QuestionCard from "../card/question-card";
 import EmptySearchResultCard from "../card/empty-search-result-card";
 import { useLoaderData } from "react-router";
-import type { loader } from "../../routes/forum.search";
+import type { loader } from "../../routes/forum.all";
 
 interface ForumSearchResultsSectionProps {
   search: string;

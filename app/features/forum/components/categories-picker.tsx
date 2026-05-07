@@ -13,12 +13,14 @@ interface CategoriesPickerProps {
   name: string;
   categories: CategoryOption[];
   defaultValue?: string;
+  onChange?: (id: string) => void;
 }
 
 export default function CategoriesPicker({
   name,
   categories,
   defaultValue = "",
+  onChange,
 }: CategoriesPickerProps) {
   const defaultCategory =
     categories.find((c) => c.id === defaultValue) || categories[0] || null;
@@ -36,6 +38,12 @@ export default function CategoriesPicker({
       setSelectedCategory(categories[0]);
     }
   }, [categories, selectedCategory]);
+
+  useEffect(() => {
+    if (selectedCategory && onChange) {
+      onChange(selectedCategory.id);
+    }
+  }, [selectedCategory, onChange]);
 
   return (
     <>

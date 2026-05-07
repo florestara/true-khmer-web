@@ -8,7 +8,6 @@ interface OpportunityDetailsGridProps {
 export default function OpportunityDetailsGrid({
   volunteer,
 }: OpportunityDetailsGridProps) {
-  const applicants = `${volunteer.applicationCount}/${volunteer.capacity}`;
   return (
     <div className="grid gap-6 border-b border-[#f9fafb] pb-5.5 pt-5.25 sm:grid-cols-2 lg:grid-cols-4">
       <div className="space-y-1">
@@ -34,12 +33,6 @@ export default function OpportunityDetailsGrid({
         <p className="text-sm font-semibold text-[#4a5565]">
           {volunteer?.durationLabel ?? "1 week"}
         </p>
-      </div>
-      <div className="space-y-1">
-        <p className="flex items-center gap-1.5 text-[10px] font-semibold tracking-[0.12px] text-[#99a1af]">
-          <Users className="size-[10.5px]" /> Applicants
-        </p>
-        <p className="text-sm font-semibold text-[#4a5565]">{applicants}</p>
       </div>
     </div>
   );

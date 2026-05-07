@@ -11,7 +11,7 @@ import ForumSearchAction from "~/routes/api/forum/forum-search/forum-search-acti
 export const loader = ForumSearchLoader;
 export const action = ForumSearchAction;
 
-export default function ForumSearchPage() {
+export default function ForumAllPage() {
   const { data, categories } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
   const isLoading = fetcher.state === "loading";

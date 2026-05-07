@@ -2,6 +2,9 @@ import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Plus, X } from "lucide-react";
 import { Link, useFetcher, useLocation, useRevalidator } from "react-router";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -14,13 +17,31 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import { Textarea } from "~/components/ui/textarea";
 import CategoriesPicker from "../categories-picker";
 import type {
   CategoriesPicker as CategoryOption,
   Question,
 } from "~/services/forum/forum-types";
 import type { ForumPostFormFieldErrors } from "~/services/forum/validation";
-import { Textarea } from "~/components/ui/textarea";
+
+// Zod validation schema
+const askQuestionSchema = z.object({
+  title: z
+    .string()
+    .min(5, "Title must be at least 5 characters")
+    .max(200, "Title must be at most 200 characters"),
+  categoryId: z.string().min(1, "Please select a category"),
+  body: z
+    .string()
+    .min(5, "Details must be at least 5 characters")
+    .max(10000, "Details must be at most 10000 characters"),
+  tags: z.array(z.string()).optional(),
+  status: z.literal("PUBLISHED"),
+  questionId: z.string().optional(),
+});
+
+type AskQuestionFormValues = z.infer<typeof askQuestionSchema>;
 
 interface AskQuestionDialogProps {
   categories: CategoryOption[];
@@ -47,32 +68,92 @@ export default function AskQuestionDialog({
         message?: string;
       }
     | undefined;
-  const fieldErrors = actionData?.fieldErrors;
-  const [open, setOpen] = useState(false);
-  const [tagInput, setTagInput] = useState("");
-  const [tags, setTags] = useState<string[]>(
-    () => data?.tags?.map((tag) => tag.name).filter(Boolean) ?? [],
-  );
-  const wasSubmitting = useRef(false);
+
   const revalidator = useRevalidator();
-  // const [searchParams, setSearchParams] = useSearchParams();
   const redirectTo = `${location.pathname}${location.search}`;
   const loginHref = `/login?redirectTo=${encodeURIComponent(redirectTo)}`;
-  const submittedTags = [...tags, tagInput.trim()].filter(Boolean);
 
+  // Tag state (managed separately due to dynamic nature)
+  const [tagInput, setTagInput] = useState("");
+  const [tags, setTags] = useState<string[]>(
+    data?.tags?.map((tag) => tag.name).filter(Boolean) ?? [],
+  );
+  const [open, setOpen] = useState(false);
+
+  // React Hook Form setup - NO useEffect for reset!
+  const {
+    register,
+    control,
+    handleSubmit,
+    formState: { errors: formErrors },
+    setValue,
+    reset,
+  } = useForm<AskQuestionFormValues>({
+    resolver: zodResolver(askQuestionSchema),
+    defaultValues: {
+      title: data?.title ?? "",
+      categoryId: data?.category?.id ?? "",
+      body: data?.body ?? "",
+      tags: data?.tags?.map((tag) => tag.name).filter(Boolean) ?? [],
+      status: "PUBLISHED" as const,
+      ...(isEditing && data?.id ? { questionId: data.id } : {}),
+    },
+  });
+
+  // Watch tags to sync hidden input
+  const watchedTags = useWatch({ control, name: "tags", defaultValue: [] });
+  const submittedTags = [...(watchedTags || []), tagInput.trim()].filter(
+    Boolean,
+  );
+
+  // Ref to track submission state for toast handling
+  const wasSubmitting = useRef(false);
+
+  // Handle fetcher state changes for toasts, form reset, and dialog close
   useEffect(() => {
-    if (open) {
-      setTags(data?.tags?.map((tag) => tag.name).filter(Boolean) ?? []);
-      setTagInput("");
+    if (fetcher.state === "submitting") {
+      wasSubmitting.current = true;
     }
-  }, [data?.id, open]);
 
+    if (wasSubmitting.current && fetcher.state === "idle" && fetcher.data) {
+      wasSubmitting.current = false;
+      const result = fetcher.data as any;
+      const isSuccess =
+        result?.data?.ok === true || result?.data?.question != null;
+      const hasFieldErrors =
+        result?.fieldErrors && Object.values(result.fieldErrors).some(Boolean);
+
+      if (isSuccess) {
+        reset();
+        setTags([]);
+        setTagInput("");
+        setOpen(false);
+        revalidator.revalidate();
+        toast.success(
+          isEditing
+            ? "Question updated successfully!"
+            : "Question posted successfully!",
+        );
+      } else if (hasFieldErrors) {
+        if (result.fieldErrors) {
+          Object.entries(result.fieldErrors).forEach(([field, message]) => {
+            if (message) {
+              // @ts-expect-error - dynamic error setting
+              formErrors[field] = { type: "server", message };
+            }
+          });
+        }
+        toast.error(result?.message ?? "Please check the form and try again.");
+      } else {
+        toast.error("Failed to post question. Please try again.");
+      }
+    }
+  }, [fetcher.state, fetcher.data, isEditing, revalidator]);
+
+  // Add tag handler
   const addTag = (rawValue: string) => {
     const nextTag = rawValue.trim();
-
-    if (!nextTag) {
-      return;
-    }
+    if (!nextTag) return;
 
     setTags((currentTags) => {
       if (
@@ -80,29 +161,57 @@ export default function AskQuestionDialog({
       ) {
         return currentTags;
       }
-
-      return [...currentTags, nextTag];
+      const newTags = [...currentTags, nextTag];
+      setValue("tags", newTags, { shouldValidate: true });
+      return newTags;
     });
     setTagInput("");
   };
 
+  // Remove tag handler
+  const removeTag = (tagToRemove: string) => {
+    setTags((currentTags) => {
+      const newTags = currentTags.filter((tag) => tag !== tagToRemove);
+      setValue("tags", newTags, { shouldValidate: true });
+      return newTags;
+    });
+  };
+
+  // Tag input keyboard handler
   const handleTagKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
       addTag(tagInput);
       return;
     }
-
     if (event.key === "Backspace" && !tagInput && tags.length > 0) {
-      setTags((currentTags) => currentTags.slice(0, -1));
+      removeTag(tags[tags.length - 1]);
     }
   };
 
+  // Form submission handler
+  const onSubmit = (formData: AskQuestionFormValues) => {
+    const submitData = new FormData();
+
+    Object.entries(formData).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        submitData.append(key, value.join(", "));
+      } else if (value !== undefined && value !== null) {
+        submitData.append(key, String(value));
+      }
+    });
+
+    fetcher.submit(submitData, {
+      method: isEditing ? "patch" : "post",
+      encType: "application/x-www-form-urlencoded",
+    });
+  };
+
+  // Auth guard for non-editing mode
   if (!isAuthenticated && !isEditing) {
     if (trigger) {
       return <Link to={loginHref}>{trigger}</Link>;
     }
-
     return (
       <Link
         to={loginHref}
@@ -114,64 +223,28 @@ export default function AskQuestionDialog({
     );
   }
 
-  useEffect(() => {
-    if (fetcher.state === "submitting") {
-      wasSubmitting.current = true;
-    }
-    if (wasSubmitting.current && fetcher.state === "idle" && fetcher.data) {
-      wasSubmitting.current = false;
-      const result = fetcher.data as any;
-      const isSuccess =
-        result?.data?.ok === true || result?.data?.question != null;
-      const hasFieldErrors =
-        result?.fieldErrors &&
-        Object.values(result.fieldErrors).some((value) => Boolean(value));
-
-      if (isSuccess) {
-        setOpen(false);
-
-        // if (isEditing) {
-        //   const nextParams = new URLSearchParams(searchParams);
-        //   const hasCursorParams =
-        //     nextParams.has("cursor") || nextParams.has("limit");
-
-        //   if (hasCursorParams) {
-        //     nextParams.delete("cursor");
-        //     nextParams.delete("limit");
-        //     setSearchParams(nextParams, { replace: true });
-        //   }
-
-        //   if (typeof window !== "undefined") {
-        //     window.scrollTo({ top: 0, behavior: "smooth" });
-        //   }
-        // }
-
-        // Always revalidate after success so list data is refreshed from page 1.
-        revalidator.revalidate();
-
-        toast.success(
-          isEditing
-            ? "Question updated successfully!"
-            : "Question posted successfully!",
-        );
-      } else if (hasFieldErrors) {
-        toast.error(result?.message ?? "Please check the form and try again.");
-      } else {
-        toast.error("Failed to post question. Please try again.");
-      }
-    }
-  }, [
-    fetcher.state,
-    fetcher.data,
-    isEditing,
-    revalidator,
-    // searchParams,
-    // setSearchParams,
-  ]);
+  // Helper to get error message (prioritize server errors, fallback to client validation)
+  const getErrorMessage = (
+    fieldName: keyof Omit<AskQuestionFormValues, "questionId" | "status">,
+  ) => {
+    const serverError = actionData?.fieldErrors?.[fieldName];
+    const clientError = formErrors[fieldName]?.message;
+    return (serverError || clientError) as string | undefined;
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (!isOpen && !isSubmitting) {
+          reset();
+          setTags(data?.tags?.map((tag) => tag.name).filter(Boolean) ?? []);
+          setTagInput("");
+        }
+      }}
+    >
+      <DialogTrigger asChild>
         {trigger || (
           <Button
             variant={"default"}
@@ -187,7 +260,7 @@ export default function AskQuestionDialog({
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
         showCloseButton={false}
-        className="max-w-[calc(100%-1rem)] gap-4 overflow-hidden rounded-lg border border-[#e2e8f0] p-6 shadow-lg sm:max-w-130"
+        className="max-w-[calc(100%-1rem)] gap-4 overflow-hidden rounded-2xl border border-[#e2e8f0] p-6 shadow-lg sm:max-w-130"
       >
         <DialogClose>
           <Button
@@ -211,69 +284,91 @@ export default function AskQuestionDialog({
 
         <div className="-mx-6 border-t border-[#e2e8f0]" />
 
-        <fetcher.Form
-          key={data?.id ?? "create-question"}
+        {/* Key prop forces re-render with new defaults when editing different question */}
+        <form
+          key={isEditing ? `edit-${data?.id}` : "create-question"}
+          onSubmit={handleSubmit(onSubmit)}
           className="flex flex-col gap-2"
-          method={isEditing ? "patch" : "post"}
         >
-          <input type="hidden" name="status" value="PUBLISHED" />
-          {isEditing ? (
-            <input type="hidden" name="questionId" value={data?.id ?? ""} />
-          ) : null}
+          {/* Title Field */}
           <div className="flex flex-col gap-2">
             <Label className="text-xs leading-4.5 font-medium text-[#364153]">
               Question title
             </Label>
             <Input
-              name="title"
+              {...register("title")}
               placeholder="What are the best resources for learning Khmer business law?"
-              defaultValue={data?.title ?? ""}
-              aria-invalid={Boolean(fieldErrors?.title)}
+              aria-invalid={Boolean(getErrorMessage("title"))}
               className="h-11 rounded-lg border-transparent bg-[#f8fafc] text-sm text-[#344256] placeholder:text-[#9eacc0] focus-visible:border-[#2f6fe4] focus-visible:ring-0 focus-visible:ring-offset-0 aria-invalid:border-red-500"
             />
-            {fieldErrors?.title ? (
-              <p className="text-xs text-red-600">{fieldErrors.title}</p>
-            ) : null}
+            {getErrorMessage("title") && (
+              <p className="text-xs text-red-600">{getErrorMessage("title")}</p>
+            )}
           </div>
 
+          {/* Category Field */}
           <div className="flex flex-col gap-2">
             <Label className="text-xs leading-4.5 font-medium text-[#364153]">
               Category
             </Label>
-            <CategoriesPicker
+            <Controller
               name="categoryId"
-              categories={categories}
-              defaultValue={data?.category?.id}
+              control={control}
+              render={({ field }) => (
+                <CategoriesPicker
+                  name={field.name}
+                  categories={categories}
+                  defaultValue={field.value}
+                  onChange={field.onChange}
+                />
+              )}
             />
-            {fieldErrors?.categoryId ? (
-              <p className="text-xs text-red-600">{fieldErrors.categoryId}</p>
-            ) : null}
+            {getErrorMessage("categoryId") && (
+              <p className="text-xs text-red-600">
+                {getErrorMessage("categoryId")}
+              </p>
+            )}
           </div>
 
+          {/* Body Field */}
           <div className="flex flex-col gap-2">
             <Label className="text-xs leading-4.5 font-medium text-[#364153]">
               Discussion Details
             </Label>
             <Textarea
-              name="body"
+              {...register("body")}
               placeholder="What are the best resources for learning Khmer business law?"
-              defaultValue={data?.body ?? ""}
-              aria-invalid={Boolean(fieldErrors?.body)}
+              aria-invalid={Boolean(getErrorMessage("body"))}
               className="h-30 overflow-x-auto max-w-full text-wrap rounded-lg border border-transparent bg-[#f8fafc] px-3 py-3 text-sm text-[#344256] placeholder:text-[#9eacc0] outline-none focus:border-[#2f6fe4] aria-invalid:border-red-500"
               rows={1}
             />
-            {fieldErrors?.body ? (
-              <p className="text-xs text-red-600">{fieldErrors.body}</p>
-            ) : null}
+            {getErrorMessage("body") && (
+              <p className="text-xs text-red-600">{getErrorMessage("body")}</p>
+            )}
           </div>
 
+          {/* Tags Field */}
           <div className="flex flex-col gap-2">
             <Label className="text-xs leading-4.5 font-medium text-[#364153]">
               Tags
             </Label>
 
-            <input type="hidden" name="tags" value={submittedTags.join(", ")} />
-            {tags.length > 0 ? (
+            {/* Hidden input to submit tags with form */}
+            <input
+              type="hidden"
+              {...register("tags")}
+              value={submittedTags.join(", ")}
+            />
+
+            <Input
+              placeholder="Type a tag and press Enter"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleTagKeyDown}
+              aria-invalid={Boolean(getErrorMessage("tags"))}
+              className="h-11 rounded-lg border-transparent bg-[#f8fafc] text-sm text-[#344256] placeholder:text-[#9eacc0] focus-visible:border-[#2f6fe4] focus-visible:ring-0 focus-visible:ring-offset-0 aria-invalid:border-red-500"
+            />
+            {tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag) => (
                   <Badge
@@ -284,13 +379,7 @@ export default function AskQuestionDialog({
                     <span>{tag}</span>
                     <button
                       type="button"
-                      onClick={() =>
-                        setTags((currentTags) =>
-                          currentTags.filter(
-                            (currentTag) => currentTag !== tag,
-                          ),
-                        )
-                      }
+                      onClick={() => removeTag(tag)}
                       className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-[#64748b] hover:bg-[#d6deea] hover:text-[#0f1729]"
                       aria-label={`Remove tag ${tag}`}
                     >
@@ -299,22 +388,15 @@ export default function AskQuestionDialog({
                   </Badge>
                 ))}
               </div>
-            ) : null}
-            <Input
-              placeholder="Type a tag and press Enter"
-              value={tagInput}
-              onChange={(event) => setTagInput(event.target.value)}
-              onKeyDown={handleTagKeyDown}
-              aria-invalid={Boolean(fieldErrors?.tags)}
-              className="h-11 rounded-lg border-transparent bg-[#f8fafc] text-sm text-[#344256] placeholder:text-[#9eacc0] focus-visible:border-[#2f6fe4] focus-visible:ring-0 focus-visible:ring-offset-0 aria-invalid:border-red-500"
-            />
-            {fieldErrors?.tags ? (
-              <p className="text-xs text-red-600">{fieldErrors.tags}</p>
-            ) : null}
+            )}
+            {getErrorMessage("tags") && (
+              <p className="text-xs text-red-600">{getErrorMessage("tags")}</p>
+            )}
           </div>
 
+          {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">
-            <DialogClose>
+            <DialogClose asChild>
               <Button
                 type="button"
                 variant="outline"
@@ -324,25 +406,21 @@ export default function AskQuestionDialog({
                 Cancel
               </Button>
             </DialogClose>
-            {isEditing ? (
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="h-8 rounded-lg bg-[#2f6fe4] px-3 text-sm font-medium text-white hover:bg-[#245fca]"
-              >
-                {isSubmitting ? "Updating..." : "Update question"}
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="h-8 rounded-lg bg-[#2f6fe4] px-3 text-sm font-medium text-white hover:bg-[#245fca]"
-              >
-                {isSubmitting ? "Posting..." : "Post question"}
-              </Button>
-            )}
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="h-8 rounded-lg bg-[#2f6fe4] px-3 text-sm font-medium text-white hover:bg-[#245fca]"
+            >
+              {isSubmitting
+                ? isEditing
+                  ? "Updating..."
+                  : "Posting..."
+                : isEditing
+                  ? "Update question"
+                  : "Post question"}
+            </Button>
           </div>
-        </fetcher.Form>
+        </form>
       </DialogContent>
     </Dialog>
   );

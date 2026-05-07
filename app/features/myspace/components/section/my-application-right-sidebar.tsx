@@ -1,9 +1,18 @@
 import MyApplicationActivitySummaryCard from "../cards/my-application-activity-summary-card";
+import { MyApplicationRecommendCard } from "../cards/my-application-recommend-card";
+import type { Opportunity } from "~/services/volunteer/types/opportunities";
 
-export default function MyApplicationRightSidebar() {
+interface MyApplicationRightSidebarProps {
+  recommendedOpportunities?: Opportunity[];
+}
+
+export default function MyApplicationRightSidebar({
+  recommendedOpportunities,
+}: MyApplicationRightSidebarProps) {
   return (
-    <div>
+    <div className="flex flex-col gap-6">
       <MyApplicationActivitySummaryCard />
+      <MyApplicationRecommendCard opportunities={recommendedOpportunities} />
     </div>
   );
 }

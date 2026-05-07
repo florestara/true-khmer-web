@@ -256,24 +256,24 @@ export type FormDataVolunteerInput = z.infer<typeof formDataVolunteerInput>;
 // };
 
 export const initialFormDataVolunteerInput: FormDataVolunteerInput = {
-  categoryId: "6336cef5-8352-4d37-86b1-7c8461633f13",
-  locationId: "ce5132ab-05ac-4aaf-87e3-7f984c2c11c6",
-  title: "Volunteer Opportunity",
-  overview: "testing",
-  communityImpact: "123123123",
-  durationLabel: "3 months",
-  commitmentLabel: "5 hour",
-  applicationDeadline: "2026-04-29T17:00:00.000Z",
-  benefits: ["123123"],
+  categoryId: "",
+  locationId: "",
+  title: "",
+  overview: "",
+  communityImpact: null,
+  durationLabel: "",
+  commitmentLabel: "",
+  applicationDeadline: "",
+  benefits: [],
   contact: {
-    email: "test@gmail.com",
+    email: "",
     telegramUsername: null,
-    phone: "85 952225",
+    phone: null,
     websiteUrl: null,
   },
   roles: [],
   coverImageKey: {
-    file: "",
+    file: null,
     value: "",
   },
 };
