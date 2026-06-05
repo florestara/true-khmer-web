@@ -36,9 +36,9 @@ export function ResetFlowShell({
           )}
         >
           <img
-            src="/logofullcolor.svg"
+            src="/TruekhmerLogo.svg"
             alt="True Khmer"
-            className="h-9 w-auto object-contain sm:h-[47px]"
+            className="h-29 w-auto object-contain sm:h-[148px] -mb-10 -mt-12"
           />
 
           <div className="mt-14 flex w-full flex-col items-center sm:mt-[100px]">

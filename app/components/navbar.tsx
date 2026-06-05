@@ -44,9 +44,9 @@ export function Navbar({ user, loginRedirectTo }: NavbarProps) {
           <div className="flex items-center shrink-0">
             <Link to="/" className="flex items-center gap-2">
               <img
-                src="/logofullcolor.svg"
+                src="/TruekhmerLogo.svg"
                 alt="Logo"
-                className="h-10 w-auto"
+                className="h-32 w-auto"
               />
             </Link>
           </div>

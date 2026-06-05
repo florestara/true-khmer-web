@@ -110,9 +110,9 @@ export default function VerifyOtpPage() {
 
         <section className="flex w-full max-w-134 flex-col items-center gap-12">
           <img
-            src="/logofullcolor.svg"
+            src="/TruekhmerLogo.svg"
             alt="True Khmer"
-            className="h-12 w-auto object-contain"
+            className="h-38 w-auto object-contain sm:h-37 -mb-12 -mt-12"
           />
 
           <div className="flex w-full flex-col items-center gap-9">

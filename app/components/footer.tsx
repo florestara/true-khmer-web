@@ -52,9 +52,9 @@ export function Footer() {
           <div className="flex max-w-sm shrink-0 flex-col gap-5">
             <Link to="/" className="inline-flex w-fit">
               <img
-                src="/logofullcolor.svg"
+                src="/TruekhmerLogo.svg"
                 alt="True Khmer"
-                className="h-8 w-auto"
+                className="h-25 w-auto -mb-8 -mt-8 "
                 loading="lazy"
               />
             </Link>

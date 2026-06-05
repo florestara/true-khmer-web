@@ -48,9 +48,9 @@ export function OnboardingHeader({
     <header className="w-full border-b border-[#DDE3ED] bg-white">
       <div className="relative mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-4 lg:px-0">
         <img
-          src="/logofullcolor.svg"
+          src="/TruekhmerLogo.svg"
           alt="True Khmer"
-          className="h-7 w-auto object-contain sm:h-8"
+          className="h-25 w-auto object-contain sm:h-27 -mb-9 -mt-10"
         />
 
         {titlePosition === "center" ? (
